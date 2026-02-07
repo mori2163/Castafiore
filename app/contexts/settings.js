@@ -253,12 +253,13 @@ const getSettings = async () => {
 				normalizedSections.push(section)
 			}
 
-			const mergedExisting = normalizedSections.map((section) => {
+			const mergedExisting = normalizedSections.reduce((acc, section) => {
 				const defaults = defaultSettings.homeOrderV2.find((s) => s.id === section?.id)
-				if (!defaults) return section
+				if (!defaults) return acc
 				const enable = typeof section.enable === 'boolean' ? section.enable : defaults.enable
-				return { ...defaults, ...section, enable }
-			})
+				acc.push({ ...defaults, ...section, enable })
+				return acc
+			}, [])
 
 			const existingIds = new Set(mergedExisting.map((section) => section.id))
 			const missingSections = defaultSettings.homeOrderV2
