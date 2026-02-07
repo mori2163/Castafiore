@@ -1,5 +1,6 @@
 import React from 'react'
 import { Text, View, Modal, FlatList, StyleSheet, useWindowDimensions, Pressable, Platform } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useNavigation } from '@react-navigation/native'
 
@@ -8,6 +9,7 @@ import { useSong, useSongDispatch } from '~/contexts/song'
 import { useTheme } from '~/contexts/theme'
 import { useCachedFirst } from '~/utils/api'
 import { urlCover } from '~/utils/url'
+import useImageColors from '~/utils/useImageColors'
 import FavoritedButton from '~/components/button/FavoritedButton'
 import IconButton from '~/components/button/IconButton'
 import ImageError from '~/components/ImageError'
@@ -148,6 +150,8 @@ const FullScreenPlayer = ({ setFullScreen }) => {
 	const [isPreview, setIsPreview] = React.useState(preview.COVER)
 	const [isOptArtists, setIsOptArtists] = React.useState(false)
 	const [isOpt, setIsOpt] = React.useState(false)
+	const coverUri = urlCover(config, song?.songInfo)
+	const imageColors = useImageColors(coverUri)
 
 	const [stars] = useCachedFirst([], 'getStarred2', null, (json, setData) => {
 		setData(json?.starred2?.song || [])
@@ -160,6 +164,14 @@ const FullScreenPlayer = ({ setFullScreen }) => {
 			onRequestClose={() => setFullScreen(false)}
 		>
 			<View style={[mainStyles.contentMainContainer(insets), styles.mainContainer(insets, theme)]}>
+				{imageColors && (
+					<LinearGradient
+						colors={[imageColors.primary, imageColors.secondary, theme.primaryBack]}
+						locations={[0, 0.5, 1]}
+						style={StyleSheet.absoluteFill}
+						pointerEvents="none"
+					/>
+				)}
 				<View style={{ width: '100%', flexDirection: 'row' }}>
 					<OptionsPlayer
 						song={song.songInfo}

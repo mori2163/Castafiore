@@ -240,13 +240,34 @@ const getSettings = async () => {
 	if (rawSettings === null) return defaultSettings
 	try {
 		const data = JSON.parse(rawSettings)
-		if (data.homeOrderV2 && data?.homeOrderV2?.length !== defaultSettings.homeOrderV2.length) {
-			defaultSettings.homeOrderV2.forEach((section) => {
-				if (!data.homeOrderV2.some((s) => s.id === section.id)) {
-					data.homeOrderV2.push({ ...section, enable: false })
-				}
+		let mergedHomeOrderV2 = defaultSettings.homeOrderV2.map((section) => ({ ...section }))
+		if (Array.isArray(data.homeOrderV2)) {
+			// Normalize homeOrderV2: remove entries without a valid id and deduplicate by id (first wins).
+			const seenIds = new Set()
+			const normalizedSections = []
+			for (const section of data.homeOrderV2) {
+				const id = section?.id
+				if (id == null) continue
+				if (seenIds.has(id)) continue
+				seenIds.add(id)
+				normalizedSections.push(section)
+			}
+
+			const mergedExisting = normalizedSections.map((section) => {
+				const defaults = defaultSettings.homeOrderV2.find((s) => s.id === section?.id)
+				if (!defaults) return section
+				const enable = typeof section.enable === 'boolean' ? section.enable : defaults.enable
+				return { ...defaults, ...section, enable }
 			})
+
+			const existingIds = new Set(mergedExisting.map((section) => section.id))
+			const missingSections = defaultSettings.homeOrderV2
+				.filter((section) => !existingIds.has(section.id))
+				.map((section) => ({ ...section, enable: false }))
+			mergedHomeOrderV2 = [...mergedExisting, ...missingSections]
 		}
+
+		data.homeOrderV2 = mergedHomeOrderV2
 		return {
 			...defaultSettings,
 			...data,
