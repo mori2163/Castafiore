@@ -7,7 +7,7 @@ module.exports = ({ config }) => {
 	return {
 		expo: {
 			name: "Castafiore" + (process.env.IS_DEV === "true" ? " (dev)" : ""),
-			slug: "Castafiore",
+			slug: "castafiore-fork",
 			description: "Castafiore is a music player that support Navidrome and Subsonic API.",
 			version: config.version,
 			orientation: "default",
