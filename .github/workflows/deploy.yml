@@ -1,8 +1,12 @@
-name: Deploy web site to Pages
+name: Build and Deploy
 
 on:
   # Runs on pushes targeting the default branch
   push:
+    branches: ["main"]
+  
+  # Runs on pull requests targeting the default branch
+  pull_request:
     branches: ["main"]
 
   # Allows you to run this workflow manually from the Actions tab
@@ -10,19 +14,19 @@ on:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
 # Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
 # However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
 concurrency:
-  group: "pages"
+  group: "build-and-deploy"
   cancel-in-progress: false
 
 jobs:
-  # Build job
-  build:
+  # Web Build and Deployment
+  build-web:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -34,7 +38,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Export Project
+
+      - name: Export Web Project
         run: npm run export:web
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
@@ -43,12 +48,81 @@ jobs:
 
   # Deployment job
   deploy:
+    if: github.event_name != 'pull_request'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    needs: build
+    needs: build-web
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  # Android Build
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Android APK (Local)
+        # Note: Requires EXPO_TOKEN and potentially keystore secrets if not already configured in EAS
+        run: npx eas-cli build --platform android --profile production --local --non-interactive --output=app-release.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: castafiore-apk
+          path: app-release.apk
+
+  # Create/Update Pre-release
+  release:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    needs: [build-android, build-web]
+    steps:
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: castafiore-apk
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+      - name: Create or Update Pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-preview
+          name: "Latest Preview (${{ steps.date.outputs.date }})"
+          body: |
+            Automated build from the `main` branch.
+            - Web: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+            - APK: Download `app-release.apk` below.
+          prerelease: true
+          files: |
+            app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
