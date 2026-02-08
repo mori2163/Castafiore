@@ -42,7 +42,8 @@ module.exports = ({ config }) => {
 			},
 			extra: {
 				eas: {
-					projectId: "98d27f72-714e-415c-99f9-30f3f78d68e2"
+					//projectId: "98d27f72-714e-415c-99f9-30f3f78d68e2"
+					projectId: "3ef9dd64-7e60-4001-8bcd-9b5e95bfb8dd" // Fork Project ID
 				}
 			},
 			experiments: {
