@@ -21,12 +21,27 @@ permissions:
 # Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
 # However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
 concurrency:
-  group: "build-and-deploy"
-  cancel-in-progress: false
+  group: "build-and-deploy-${{ github.ref }}"
+  # For PRs, cancel previous builds when a new commit is pushed to save resources.
+  # For the main branch (deployment), do not cancel.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Web Build and Deployment
+  # Code Quality Check (Lint / Test)
+  # If this fails, deployment will not proceed
+  quality-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+
   build-web:
+    needs: quality-check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -61,6 +76,9 @@ jobs:
 
   # Android Build
   build-android:
+    # Do not run on PRs (or only run when Android-related files change) to save time
+    if: github.event_name != 'pull_request'
+    needs: quality-check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -110,19 +128,23 @@ jobs:
 
       - name: Get current date
         id: date
-        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+        run: echo "date=$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT
 
-      - name: Create or Update Pre-release
+      - name: Update Nightly Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest-preview
-          name: "Latest Preview (${{ steps.date.outputs.date }})"
+          tag_name: nightly
+          name: "Nightly Build (Latest)"
           body: |
-            Automated build from the `main` branch.
-            - Web: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
-            - APK: Download `app-release.apk` below.
+            Latest automated build from `main`.
+            
+            - **Build Time**: ${{ steps.date.outputs.date }}
+            - **Commit**: ${{ github.sha }}
+            - **Web**: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+            
+            :warning: This release is automatically updated.
           prerelease: true
-          files: |
-            app-release.apk
+          files: app-release.apk
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
