@@ -6,7 +6,9 @@ import { useTranslation } from 'react-i18next'
 import { useConfig } from '~/contexts/config'
 import { useSettings, useSetSettings } from '~/contexts/settings'
 import { getApi } from '~/utils/api'
-import { urlCover } from '~/utils/url'
+import { isSongCached, deleteSongCache } from '~/utils/cache'
+import { downloadSong } from '~/utils/player'
+import { urlCover, urlStream } from '~/utils/url'
 import size from '~/styles/size'
 import OptionsPopup from '~/components/popup/OptionsPopup'
 
@@ -17,6 +19,13 @@ const OptionsPlayer = ({ song, isOpen, setIsOpen, closePlayer }) => {
 	const navigation = useNavigation()
 	const config = useConfig()
 	const refOption = React.useRef()
+	const [isCached, setIsCached] = React.useState(false)
+
+	React.useEffect(() => {
+		if (!isOpen || !song?.id) return
+		isSongCached(config, song.id, settings.streamFormat, settings.maxBitRate)
+			.then((cached) => setIsCached(cached ? true : false))
+	}, [isOpen, song?.id])
 
 	const goToArtist = () => {
 		if (song.artists?.length > 1) {
@@ -113,6 +122,21 @@ const OptionsPlayer = ({ song, isOpen, setIsOpen, closePlayer }) => {
 						Linking.openURL(song.homePageUrl)
 					},
 					hidden: !song.homePageUrl
+				},
+				{
+					name: t(isCached ? 'Delete from cache' : 'Cache song'),
+					icon: 'cloud-download',
+					onPress: async () => {
+						if (isCached) {
+							await deleteSongCache(config, song.id, settings.streamFormat, settings.maxBitRate)
+							setIsCached(false)
+						} else {
+							await downloadSong(urlStream(config, song.id, settings.streamFormat, settings.maxBitRate), song.id)
+							setIsCached(true)
+						}
+						refOption.current.close()
+					},
+					hidden: song.isLiveStream
 				},
 				{
 					name: t(settings.repeatQueue ? 'Disable repeat queue' : 'Enable repeat queue'),
